@@ -1,0 +1,9 @@
+Analog Output Utility 1.0.0
+Target: windows/amd64
+Build mode: GUI, CGO disabled, stripped, trimpath enabled
+Runtime dependencies: Windows system DLLs only
+API base path: /api
+Authentication: HTTP Basic
+Write payload: analogOutputs only
+Verification: GET /api/settings after POST
+Digital signature: none
