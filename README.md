@@ -17,10 +17,10 @@ The Windows executable uses only Windows system DLLs and the Go standard library
 
 The utility uses the following endpoints from the supplied Swagger 2.0 file:
 
-- `GET /api/status` — connection and authentication test
-- `GET /api/settings` — read the current settings and extract `analogOutputs`
+- `GET /api/status` — connection and authentication test performed by **Connect**
+- `GET /api/settings` — load the current `analogOutputs` during **Connect**
 - `POST /api/settings` — send only the `analogOutputs` property
-- `GET /api/settings` — verify the values returned by the device after a write
+- `GET /api/settings` — verify the values returned by the instrument after a write
 
 The POST body has this shape:
 
@@ -60,7 +60,7 @@ Accepted examples:
 - `192.168.1.50`
 - `192.168.1.50:8080`
 - `http://192.168.1.50`
-- `https://device.local/api`
+- `https://instrument.local/api`
 
 When the scheme is omitted, `http://` is used. When the API path is omitted, `/api/` is appended.
 
@@ -69,8 +69,8 @@ When the scheme is omitted, `http://` is used. When the API path is omitted, `/a
 - The password can remain in the form until the application closes.
 - Clearing the checkbox **Keep password until app closes** clears the password field after each operation.
 - **Clear Credentials** clears the username and password fields immediately.
-- HTTP Basic authentication over plain HTTP is not encrypted. Use HTTPS when supported by the device.
-- Certificate validation is disabled by default for local devices using a self-signed or mismatched certificate.
+- HTTP Basic authentication over plain HTTP is not encrypted. Use HTTPS when supported by the instrument.
+- Certificate validation is disabled by default for local instruments using a self-signed or mismatched certificate.
 - Clear **Allow an invalid HTTPS certificate** to enable certificate verification for an operation.
 - Passwords and authorization headers are not written to the operation log.
 
@@ -78,6 +78,8 @@ When the scheme is omitted, `http://` is used. When the API path is omitted, `/a
 
 - Network operations do not block the interface.
 - Only one operation can run at a time.
+- **Send Settings** remains disabled until **Connect** has successfully tested the connection and loaded the current settings.
+- Changing connection details disables **Send Settings** until the next successful **Connect**.
 - The active operation can be cancelled.
 - Every request has a configurable timeout from 1 to 300 seconds.
 - HTTP 400, 401, 403, 404, 405, and 5xx responses receive specific messages.
@@ -128,8 +130,8 @@ The project includes automated tests for:
 - exactly two analog outputs;
 - allowed source validation;
 - minimal POST payload construction;
-- preservation of unrelated settings by the mock device;
+- preservation of unrelated settings by the mock instrument;
 - write and read-back verification;
 - HTTP error propagation.
 
-The API logic was tested with a local mock HTTP server. Windows and macOS executables are cross-compiled during the shell build. They were not executed against a physical bSense device in the build environment.
+The API logic was tested with a local mock HTTP server. Windows and macOS executables are cross-compiled during the shell build. They were not executed against a physical bSense instrument in the build environment.

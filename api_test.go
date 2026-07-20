@@ -17,9 +17,9 @@ func TestNormalizeBaseURL(t *testing.T) {
 	tests := map[string]string{
 		"192.168.10.20":                   "http://192.168.10.20/api/",
 		"192.168.10.20:8080":              "http://192.168.10.20:8080/api/",
-		"https://device.local":            "https://device.local/api/",
-		"https://device.local/api":        "https://device.local/api/",
-		"https://device.local/custom/api": "https://device.local/custom/api/",
+		"https://instrument.local":            "https://instrument.local/api/",
+		"https://instrument.local/api":        "https://instrument.local/api/",
+		"https://instrument.local/custom/api": "https://instrument.local/custom/api/",
 		"2001:db8::1":                     "http://[2001:db8::1]/api/",
 	}
 	for input, expected := range tests {

@@ -36,6 +36,7 @@ const (
 	cbSetCurSel       = 0x014E
 
 	bnClicked = 0
+	enChange  = 0x0300
 
 	bstUnchecked = 0
 	bstChecked   = 1
@@ -78,8 +79,7 @@ const (
 	idShowPassword     = 1005
 	idKeepPassword     = 1006
 	idInvalidTLS       = 1007
-	idTestConnection   = 1101
-	idReadSettings     = 1102
+	idConnect          = 1101
 	idSendSettings     = 1103
 	idCancel           = 1104
 	idClearCredentials = 1105
@@ -182,8 +182,7 @@ type wndClassEx struct {
 type operationKind int
 
 const (
-	opTest operationKind = iota + 1
-	opRead
+	opConnect operationKind = iota + 1
 	opSend
 )
 
@@ -223,8 +222,7 @@ type application struct {
 	high   [2]uintptr
 	log    [2]uintptr
 
-	testButton       uintptr
-	readButton       uintptr
+	connectButton    uintptr
 	sendButton       uintptr
 	cancelButton     uintptr
 	clearCredentials uintptr
@@ -232,8 +230,9 @@ type application struct {
 	statusText       uintptr
 	logText          uintptr
 
-	busy   bool
-	cancel context.CancelFunc
+	busy      bool
+	connected bool
+	cancel    context.CancelFunc
 
 	resultMu sync.Mutex
 	results  []operationResult
@@ -342,6 +341,12 @@ func windowProc(hwnd uintptr, message uint32, wParam, lParam uintptr) uintptr {
 	case wmCommand:
 		id := int(wParam & 0xFFFF)
 		code := int((wParam >> 16) & 0xFFFF)
+		if code == enChange {
+			switch id {
+			case idAddress, idUsername, idPassword, idTimeout:
+				a.invalidateConnection()
+			}
+		}
 		if code == bnClicked {
 			a.handleCommand(id)
 		}
@@ -375,10 +380,10 @@ func (a *application) createControls() error {
 	a.fontBold, a.ownBold = createUIFont(fwSemiBold)
 
 	var err error
-	if _, err = a.addControl(0, "BUTTON", "Device connection", wsChild|wsVisible|bsGroupBox, 12, 10, 880, 190, 0, a.font); err != nil {
+	if _, err = a.addControl(0, "BUTTON", "Instrument connection", wsChild|wsVisible|bsGroupBox, 12, 10, 880, 190, 0, a.font); err != nil {
 		return err
 	}
-	if _, err = a.addControl(0, "STATIC", "Device address", wsChild|wsVisible, 30, 36, 95, 22, 0, a.font); err != nil {
+	if _, err = a.addControl(0, "STATIC", "Instrument address", wsChild|wsVisible, 30, 36, 100, 22, 0, a.font); err != nil {
 		return err
 	}
 	if a.address, err = a.addControl(wsExClientEdge, "EDIT", "", wsChild|wsVisible|wsTabStop|esLeft|esAutoHScroll, 130, 32, 500, 25, idAddress, a.font); err != nil {
@@ -393,7 +398,7 @@ func (a *application) createControls() error {
 	if _, err = a.addControl(0, "STATIC", "seconds", wsChild|wsVisible, 772, 36, 60, 22, 0, a.font); err != nil {
 		return err
 	}
-	if _, err = a.addControl(0, "STATIC", "Examples: 192.168.1.50, 192.168.1.50:8080, or https://device.local/api", wsChild|wsVisible, 130, 60, 660, 20, 0, a.font); err != nil {
+	if _, err = a.addControl(0, "STATIC", "Examples: 192.168.1.50, 192.168.1.50:8080, or https://instrument.local/api", wsChild|wsVisible, 130, 60, 660, 20, 0, a.font); err != nil {
 		return err
 	}
 	if _, err = a.addControl(0, "STATIC", "Username", wsChild|wsVisible, 30, 88, 95, 22, 0, a.font); err != nil {
@@ -423,20 +428,18 @@ func (a *application) createControls() error {
 	if _, err = a.addControl(0, "STATIC", "Credentials are kept in process memory only. HTTP Basic authentication over plain HTTP is not encrypted.", wsChild|wsVisible, 130, 141, 700, 20, 0, a.font); err != nil {
 		return err
 	}
-	if a.testButton, err = a.addControl(0, "BUTTON", "Test Connection", wsChild|wsVisible|wsTabStop|bsDefaultButton, 30, 165, 150, 28, idTestConnection, a.font); err != nil {
+	if a.connectButton, err = a.addControl(0, "BUTTON", "Connect", wsChild|wsVisible|wsTabStop|bsDefaultButton, 30, 165, 150, 28, idConnect, a.font); err != nil {
 		return err
 	}
-	if a.readButton, err = a.addControl(0, "BUTTON", "Read Settings", wsChild|wsVisible|wsTabStop|bsPushButton, 190, 165, 150, 28, idReadSettings, a.font); err != nil {
+	if a.sendButton, err = a.addControl(0, "BUTTON", "Send Settings", wsChild|wsVisible|wsTabStop|bsPushButton, 190, 165, 150, 28, idSendSettings, a.font); err != nil {
 		return err
 	}
-	if a.sendButton, err = a.addControl(0, "BUTTON", "Send Settings", wsChild|wsVisible|wsTabStop|bsPushButton, 350, 165, 150, 28, idSendSettings, a.font); err != nil {
-		return err
-	}
-	if a.cancelButton, err = a.addControl(0, "BUTTON", "Cancel", wsChild|wsVisible|wsTabStop|bsPushButton, 510, 165, 110, 28, idCancel, a.font); err != nil {
+	procEnableWindow.Call(a.sendButton, 0)
+	if a.cancelButton, err = a.addControl(0, "BUTTON", "Cancel", wsChild|wsVisible|wsTabStop|bsPushButton, 350, 165, 110, 28, idCancel, a.font); err != nil {
 		return err
 	}
 	procEnableWindow.Call(a.cancelButton, 0)
-	if a.clearCredentials, err = a.addControl(0, "BUTTON", "Clear Credentials", wsChild|wsVisible|wsTabStop|bsPushButton, 630, 165, 170, 28, idClearCredentials, a.font); err != nil {
+	if a.clearCredentials, err = a.addControl(0, "BUTTON", "Clear Credentials", wsChild|wsVisible|wsTabStop|bsPushButton, 470, 165, 170, 28, idClearCredentials, a.font); err != nil {
 		return err
 	}
 
@@ -490,7 +493,7 @@ func (a *application) createControls() error {
 			return err
 		}
 	}
-	if _, err = a.addControl(0, "STATIC", "Available sources: TCC, ICC, HNAP, HNAC, LNAC. Values accept a decimal point or comma.", wsChild|wsVisible, 35, 342, 760, 22, 0, a.font); err != nil {
+	if _, err = a.addControl(0, "STATIC", "Values accept a decimal point or comma.", wsChild|wsVisible, 35, 342, 760, 22, 0, a.font); err != nil {
 		return err
 	}
 
@@ -503,7 +506,7 @@ func (a *application) createControls() error {
 	if a.logText, err = a.addControl(wsExClientEdge, "EDIT", "", wsChild|wsVisible|wsVScroll|esLeft|esMultiline|esAutoVScroll|esReadOnly, 28, 430, 842, 205, 0, a.font); err != nil {
 		return err
 	}
-	if a.statusText, err = a.addControl(0, "STATIC", "Ready. Enter the device address and credentials.", wsChild|wsVisible, 14, 670, 878, 28, 0, a.fontBold); err != nil {
+	if a.statusText, err = a.addControl(0, "STATIC", "Ready. Enter the instrument address and credentials.", wsChild|wsVisible, 14, 670, 878, 28, 0, a.fontBold); err != nil {
 		return err
 	}
 
@@ -534,10 +537,8 @@ func (a *application) addControl(exStyle uint32, class, text string, style uint3
 
 func (a *application) handleCommand(id int) {
 	switch id {
-	case idTestConnection:
-		a.startOperation(opTest)
-	case idReadSettings:
-		a.startOperation(opRead)
+	case idConnect:
+		a.startOperation(opConnect)
 	case idSendSettings:
 		a.startOperation(opSend)
 	case idCancel:
@@ -548,7 +549,10 @@ func (a *application) handleCommand(id int) {
 		}
 	case idShowPassword:
 		a.updatePasswordVisibility()
+	case idInvalidTLS:
+		a.invalidateConnection()
 	case idClearCredentials:
+		a.invalidateConnection()
 		setText(a.username, "")
 		setText(a.password, "")
 		setChecked(a.showPassword, false)
@@ -589,6 +593,9 @@ func (a *application) startOperation(kind operationKind) {
 			return
 		}
 	}
+	if kind == opConnect {
+		a.connected = false
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	a.cancel = cancel
@@ -614,10 +621,11 @@ func (a *application) startOperation(kind operationKind) {
 		defer client.Close()
 
 		switch kind {
-		case opTest:
+		case opConnect:
 			result.status, result.err = client.TestConnection(ctx)
-		case opRead:
-			result.outputs, result.err = client.ReadAnalogOutputs(ctx)
+			if result.err == nil {
+				result.outputs, result.err = client.ReadAnalogOutputs(ctx)
+			}
 		case opSend:
 			result.outputs, result.err = client.UpdateAnalogOutputs(ctx, desired)
 		}
@@ -641,16 +649,14 @@ func (a *application) handleOperationResults() {
 	a.resultMu.Unlock()
 
 	for _, result := range results {
-		if len(result.outputs) == 2 {
-			a.populateOutputs(result.outputs)
-		}
 		a.cancel = nil
-		a.setBusy(false)
-		if !isChecked(a.keepPassword) {
+		clearPassword := !isChecked(a.keepPassword) && getText(a.password) != ""
+		if result.err != nil && clearPassword {
 			setText(a.password, "")
 		}
 
 		if result.err != nil {
+			a.setBusy(false)
 			if errors.Is(result.err, context.Canceled) {
 				a.setStatus("Operation cancelled.")
 				a.appendLog(operationName(result.kind) + " cancelled.")
@@ -664,12 +670,10 @@ func (a *application) handleOperationResults() {
 		}
 
 		switch result.kind {
-		case opTest:
-			message := fmt.Sprintf("Connection successful. The device returned HTTP %d from /api/status.", result.status)
-			a.setStatus(message)
-			a.appendLog(message)
-		case opRead:
-			message := "Settings read successfully. The form now contains both analog outputs."
+		case opConnect:
+			a.populateOutputs(result.outputs)
+			a.connected = true
+			message := fmt.Sprintf("Connected successfully. The instrument returned HTTP %d and its settings were loaded.", result.status)
 			a.setStatus(message)
 			a.appendLog(message)
 		case opSend:
@@ -677,6 +681,14 @@ func (a *application) handleOperationResults() {
 			a.setStatus(message)
 			a.appendLog(message)
 			messageBox(a.hwnd, "Settings Updated", message, mbOK|mbIconInfo)
+		}
+		a.setBusy(false)
+		if clearPassword {
+			setText(a.password, "")
+			a.connected = false
+			procEnableWindow.Call(a.sendButton, 0)
+			a.setStatus("Password cleared. Enter it and Connect again before sending settings.")
+			a.appendLog("Password cleared because Keep password until app closes is disabled.")
 		}
 	}
 }
@@ -762,7 +774,7 @@ func (a *application) setBusy(busy bool) {
 	a.busy = busy
 	interactive := []uintptr{
 		a.address, a.username, a.password, a.timeout, a.showPassword, a.keepPassword, a.invalidTLS,
-		a.testButton, a.readButton, a.sendButton, a.clearCredentials,
+		a.connectButton, a.clearCredentials,
 		a.source[0], a.source[1], a.low[0], a.low[1], a.high[0], a.high[1], a.log[0], a.log[1],
 	}
 	for _, control := range interactive {
@@ -774,6 +786,13 @@ func (a *application) setBusy(busy bool) {
 			procEnableWindow.Call(control, enabled)
 		}
 	}
+	if a.sendButton != 0 {
+		enabled := uintptr(0)
+		if !busy && a.connected {
+			enabled = 1
+		}
+		procEnableWindow.Call(a.sendButton, enabled)
+	}
 	if a.cancelButton != 0 {
 		enabled := uintptr(0)
 		if busy {
@@ -781,6 +800,17 @@ func (a *application) setBusy(busy bool) {
 		}
 		procEnableWindow.Call(a.cancelButton, enabled)
 	}
+}
+
+func (a *application) invalidateConnection() {
+	if !a.connected {
+		return
+	}
+	a.connected = false
+	if a.sendButton != 0 {
+		procEnableWindow.Call(a.sendButton, 0)
+	}
+	a.setStatus("Connection details changed. Connect again before sending settings.")
 }
 
 func (a *application) updatePasswordVisibility() {
@@ -813,10 +843,8 @@ func (a *application) appendLog(text string) {
 
 func operationName(kind operationKind) string {
 	switch kind {
-	case opTest:
-		return "Connection test"
-	case opRead:
-		return "Settings read"
+	case opConnect:
+		return "Connect"
 	case opSend:
 		return "Settings update"
 	default:

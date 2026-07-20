@@ -155,17 +155,17 @@ func newMacHandler(token string, quit func()) http.Handler {
 
 		response := macOperationResponse{}
 		switch input.Operation {
-		case "test":
+		case "connect":
 			response.Status, err = client.TestConnection(r.Context())
-			response.Message = "Connection successful. The device returned HTTP " + strconv.Itoa(response.Status) + " from /api/status."
-		case "read":
-			response.Outputs, err = client.ReadAnalogOutputs(r.Context())
-			response.Message = "Settings read successfully. The form now contains both analog outputs."
+			if err == nil {
+				response.Outputs, err = client.ReadAnalogOutputs(r.Context())
+			}
+			response.Message = "Connected successfully. The instrument returned HTTP " + strconv.Itoa(response.Status) + " and its settings were loaded."
 		case "send":
 			response.Outputs, err = client.UpdateAnalogOutputs(r.Context(), input.Outputs)
 			response.Message = "Settings sent and verified successfully."
 		default:
-			writeMacJSON(w, http.StatusBadRequest, macOperationResponse{Error: "operation must be test, read, or send"})
+			writeMacJSON(w, http.StatusBadRequest, macOperationResponse{Error: "operation must be connect or send"})
 			return
 		}
 		if err != nil {
@@ -213,14 +213,14 @@ const macPage = `<!doctype html>
 <body><main>
 <h1>Analog Output Utility <small>{{VERSION}}</small></h1>
 <form id="form" autocomplete="off">
-<fieldset><legend>Device connection</legend><div class="connection">
-<label for="address">Device address</label><input id="address" class="wide" required placeholder="192.168.1.50 or https://device.local/api">
+<fieldset><legend>Instrument connection</legend><div class="connection">
+<label for="address">Instrument IP</label><input id="address" class="wide" required placeholder="192.168.1.50 or https://instrument.local/api">
 <label for="username">Username</label><input id="username" required autocomplete="off"><label for="timeout">Timeout (seconds)</label><input id="timeout" type="number" min="1" max="300" step="1" value="10" required>
 <label for="password">Password</label><input id="password" type="password" autocomplete="new-password"><label class="check"><input id="showPassword" type="checkbox"> Show</label><span></span>
 <span></span><label class="check wide"><input id="keepPassword" type="checkbox" checked> Keep password until app closes</label>
 <span></span><label class="check wide"><input id="invalidTLS" type="checkbox" checked> Allow an invalid HTTPS certificate</label>
 </div><p class="hint">Credentials stay in this process and browser tab only. HTTP Basic authentication over plain HTTP is not encrypted.</p>
-<div class="actions"><button type="button" class="primary" data-operation="test">Test Connection</button><button type="button" data-operation="read">Read Settings</button><button type="button" data-operation="send">Send Settings</button><button type="button" id="cancel" disabled>Cancel</button><button type="button" id="clearCredentials">Clear Credentials</button></div>
+<div class="actions"><button type="button" class="primary" data-operation="connect">Connect</button><button type="button" data-operation="send" disabled>Send Settings</button><button type="button" id="cancel" disabled>Cancel</button><button type="button" id="clearCredentials">Clear Credentials</button></div>
 </fieldset>
 <fieldset><legend>Analog outputs</legend><div class="outputs">
 <span class="head">Output</span><span class="head">Source</span><span class="head">Low (4 mA)</span><span class="head">High (20 mA)</span><span class="head">Log scale</span>
@@ -228,17 +228,18 @@ const macPage = `<!doctype html>
 <span class="output-name">Analog output 2</span><select id="source2"><option>HNAP</option><option>TCC</option><option>ICC</option><option>HNAC</option><option>LNAC</option></select><input id="low2" value="0" required><input id="high2" value="100" required><label class="check"><input id="log2" type="checkbox"> Enabled</label>
 </div><p class="hint">Values accept a decimal point or comma.</p></fieldset>
 <fieldset><legend>Operation log</legend><textarea id="log" readonly></textarea><div class="actions"><button type="button" id="clearLog">Clear Log</button><button type="button" class="danger" id="quit">Quit Utility</button></div></fieldset>
-<div id="status" role="status" aria-live="polite">Ready. Enter the device address and credentials.</div>
+<div id="status" role="status" aria-live="polite">Ready. Enter the instrument address and credentials.</div>
 </form></main>
 <script>
-const $=id=>document.getElementById(id),form=$('form'),logBox=$('log'),statusBox=$('status');let controller;
+const $=id=>document.getElementById(id),form=$('form'),logBox=$('log'),statusBox=$('status');let controller,connected=false;
 function log(text){const now=new Date().toLocaleTimeString([], {hour12:false});logBox.value+='['+now+'] '+text+'\n';logBox.scrollTop=logBox.scrollHeight}
 function number(id){const text=$(id).value.trim().replace(',','.');const value=Number(text);if(text===''||!Number.isFinite(value))throw new Error(id+' must be a finite number');return value}
 function outputs(){return[1,2].map(i=>({source:$('source'+i).value,low:number('low'+i),high:number('high'+i),log:$('log'+i).checked}))}
 function fill(values){if(!values||values.length!==2)return;values.forEach((o,n)=>{const i=n+1;$('source'+i).value=o.source;$('low'+i).value=o.low;$('high'+i).value=o.high;$('log'+i).checked=o.log})}
-function setBusy(busy){form.querySelectorAll('input,select,button[data-operation],#clearCredentials').forEach(e=>e.disabled=busy);$('cancel').disabled=!busy}
-async function operate(operation){if(!$('address').reportValidity()||!$('username').reportValidity()||!$('timeout').reportValidity())return;let values=[];if(operation==='send'){try{values=outputs()}catch(e){statusBox.textContent=e.message;return}if(!confirm('Send both analog outputs to '+$('address').value+'? The utility will post only analogOutputs and read the settings back for verification.'))return}
-const request={operation,address:$('address').value,username:$('username').value,password:$('password').value,timeoutSeconds:Number($('timeout').value),allowInvalidTLS:$('invalidTLS').checked,outputs:values};controller=new AbortController;setBusy(true);statusBox.textContent='Operation in progress…';log(operation+' started for '+request.address);if(!/^https:\/\//i.test(request.address))log('Warning: HTTP Basic credentials may be sent over an unencrypted connection.');if(request.allowInvalidTLS)log('Warning: HTTPS certificate verification is disabled for this operation.');
-try{const response=await fetch('operation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request),signal:controller.signal});const data=await response.json();if(!response.ok)throw new Error(data.error||'Request failed (HTTP '+response.status+')');fill(data.outputs);statusBox.textContent=data.message;log(data.message)}catch(e){if(e.name==='AbortError'){statusBox.textContent='Operation cancelled.';log('Cancellation requested.')}else{statusBox.textContent='Operation failed. See the log for details.';log(e.message);alert(e.message)}}finally{if(!$('keepPassword').checked)$('password').value='';controller=undefined;setBusy(false)}}
-document.querySelectorAll('[data-operation]').forEach(button=>button.onclick=()=>operate(button.dataset.operation));$('cancel').onclick=()=>controller?.abort();$('showPassword').onchange=()=>$('password').type=$('showPassword').checked?'text':'password';$('clearCredentials').onclick=()=>{$('username').value='';$('password').value='';statusBox.textContent='Credentials cleared from the form.';log('Credentials cleared from process memory fields.')};$('clearLog').onclick=()=>{logBox.value='';log('Log cleared.')};$('quit').onclick=async()=>{if(controller)controller.abort();await fetch('quit',{method:'POST'});document.body.innerHTML='<main><h1>Analog Output Utility has stopped.</h1><p>You can close this tab.</p></main>'};log('Application started. No credentials will be written to disk.');$('address').focus();
+function setBusy(busy){form.querySelectorAll('input,select,button[data-operation],#clearCredentials').forEach(e=>e.disabled=busy);form.querySelector('[data-operation="send"]').disabled=busy||!connected;$('cancel').disabled=!busy}
+function invalidateConnection(){if(!connected)return;connected=false;form.querySelector('[data-operation="send"]').disabled=true;statusBox.textContent='Connection details changed. Connect again before sending settings.'}
+async function operate(operation){if(!$('address').reportValidity()||!$('username').reportValidity()||!$('timeout').reportValidity())return;let values=[],completed=false;if(operation==='send'){try{values=outputs()}catch(e){statusBox.textContent=e.message;return}if(!confirm('Send both analog outputs to '+$('address').value+'? The utility will post only analogOutputs and read the settings back for verification.'))return}
+const request={operation,address:$('address').value,username:$('username').value,password:$('password').value,timeoutSeconds:Number($('timeout').value),allowInvalidTLS:$('invalidTLS').checked,outputs:values};if(operation==='connect')connected=false;controller=new AbortController;setBusy(true);statusBox.textContent='Operation in progress…';log(operation+' started for '+request.address);if(!/^https:\/\//i.test(request.address))log('Warning: HTTP Basic credentials may be sent over an unencrypted connection.');if(request.allowInvalidTLS)log('Warning: HTTPS certificate verification is disabled for this operation.');
+try{const response=await fetch('operation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request),signal:controller.signal});const data=await response.json();if(!response.ok)throw new Error(data.error||'Request failed (HTTP '+response.status+')');fill(data.outputs);if(operation==='connect')connected=true;completed=true;statusBox.textContent=data.message;log(data.message)}catch(e){if(e.name==='AbortError'){statusBox.textContent='Operation cancelled.';log('Cancellation requested.')}else{statusBox.textContent='Operation failed. See the log for details.';log(e.message);alert(e.message)}}finally{if(!$('keepPassword').checked&&request.password!==''){$('password').value='';connected=false;if(completed){statusBox.textContent='Password cleared. Enter it and Connect again before sending settings.';log('Password cleared because Keep password until app closes is disabled.')}}controller=undefined;setBusy(false)}}
+document.querySelectorAll('[data-operation]').forEach(button=>button.onclick=()=>operate(button.dataset.operation));['address','username','password','timeout'].forEach(id=>$(id).addEventListener('input',invalidateConnection));$('invalidTLS').addEventListener('change',invalidateConnection);$('cancel').onclick=()=>controller?.abort();$('showPassword').onchange=()=>$('password').type=$('showPassword').checked?'text':'password';$('clearCredentials').onclick=()=>{invalidateConnection();$('username').value='';$('password').value='';statusBox.textContent='Credentials cleared from the form.';log('Credentials cleared from process memory fields.')};$('clearLog').onclick=()=>{logBox.value='';log('Log cleared.')};$('quit').onclick=async()=>{if(controller)controller.abort();await fetch('quit',{method:'POST'});document.body.innerHTML='<main><h1>Analog Output Utility has stopped.</h1><p>You can close this tab.</p></main>'};log('Application started. No credentials will be written to disk.');$('address').focus();
 </script></body></html>`
