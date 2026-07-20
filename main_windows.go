@@ -16,8 +16,6 @@ import (
 	"unsafe"
 )
 
-var version = "dev"
-
 const (
 	className = "AnalogOutputUtilityWindow"
 
@@ -818,55 +816,6 @@ func operationName(kind operationKind) string {
 		return "Settings update"
 	default:
 		return "Operation"
-	}
-}
-
-func friendlyError(err error) string {
-	if errors.Is(err, context.DeadlineExceeded) {
-		return "The request timed out. Check the device address, network route, and timeout value."
-	}
-	var httpErr *HTTPError
-	if errors.As(err, &httpErr) {
-		detail := ""
-		if httpErr.Body != "" {
-			detail = "\n\nDevice response: " + httpErr.Body
-		}
-		switch httpErr.StatusCode {
-		case 400:
-			return "The device rejected the request as invalid (HTTP 400)." + detail
-		case 401:
-			return "Authentication failed (HTTP 401). Check the username and password." + detail
-		case 403:
-			return "The authenticated account is not allowed to perform this operation (HTTP 403)." + detail
-		case 404:
-			return "The API endpoint was not found (HTTP 404). Check the address and confirm that the device exposes /api/settings and /api/status." + detail
-		case 405:
-			return "The device does not allow this HTTP method on the endpoint (HTTP 405)." + detail
-		default:
-			if httpErr.StatusCode >= 500 {
-				return fmt.Sprintf("The device returned a server error (HTTP %d).", httpErr.StatusCode) + detail
-			}
-			return fmt.Sprintf("The device returned HTTP %d.", httpErr.StatusCode) + detail
-		}
-	}
-
-	text := err.Error()
-	lower := strings.ToLower(text)
-	switch {
-	case strings.Contains(lower, "certificate signed by unknown authority") || strings.Contains(lower, "certificate is not trusted"):
-		return "The HTTPS certificate is not trusted. Install a valid certificate or explicitly enable 'Allow an invalid HTTPS certificate' for this device.\n\nTechnical detail: " + text
-	case strings.Contains(lower, "certificate") && strings.Contains(lower, "not valid for"):
-		return "The HTTPS certificate does not match the device address. Use the certificate hostname or explicitly allow an invalid certificate.\n\nTechnical detail: " + text
-	case strings.Contains(lower, "connection refused") || strings.Contains(lower, "no connection could be made"):
-		return "The device refused the connection. Check the IP address, port, protocol, and whether the API service is running.\n\nTechnical detail: " + text
-	case strings.Contains(lower, "no such host") || strings.Contains(lower, "name or service not known"):
-		return "The device hostname could not be resolved. Check the address or use its IP address.\n\nTechnical detail: " + text
-	case strings.Contains(lower, "server gave http response to https client"):
-		return "The address uses HTTPS, but the device answered with plain HTTP. Change the address to http://.\n\nTechnical detail: " + text
-	case strings.Contains(lower, "network is unreachable") || strings.Contains(lower, "host is unreachable"):
-		return "The device is not reachable from this computer. Check the network connection and routing.\n\nTechnical detail: " + text
-	default:
-		return text
 	}
 }
 

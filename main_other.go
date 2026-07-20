@@ -1,9 +1,9 @@
-//go:build !windows
+//go:build !windows && !darwin
 
 package main
 
 import "fmt"
 
 func main() {
-	fmt.Println("Analog Output Utility is a Windows application. Build with GOOS=windows GOARCH=amd64.")
+	fmt.Println("Analog Output Utility supports Windows and macOS.")
 }

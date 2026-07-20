@@ -1,17 +1,17 @@
 # Analog Output Utility
 
-Windows desktop utility for reading and updating the two `analogOutputs` exposed by the bSense API.
+Windows and macOS utility for reading and updating the two `analogOutputs` exposed by the bSense API.
 
 ## Runtime
 
-- Target: Windows x64
-- Distribution: one `AnalogOutputUtility.exe` file
-- External runtime: none
+- Targets: Windows x64, macOS Apple Silicon, and macOS Intel
+- Distribution: one executable per target
+- External runtime: none beyond the operating system and the default browser on macOS
 - External application libraries: none
 - Network protocols: HTTP or HTTPS
 - Authentication: HTTP Basic authentication
 
-The executable uses only Windows system DLLs and the Go standard library. Credentials are never written to a file, the registry, or Windows Credential Manager.
+The Windows executable uses only Windows system DLLs and the Go standard library. The macOS executable uses the Go standard library and opens its interface in the default browser on a token-protected loopback address. The utility never writes credentials to disk.
 
 ## API behavior
 
@@ -76,7 +76,7 @@ When the scheme is omitted, `http://` is used. When the API path is omitted, `/a
 
 ## Concurrency and error handling
 
-- Network operations run outside the Win32 UI thread.
+- Network operations do not block the interface.
 - Only one operation can run at a time.
 - The active operation can be cancelled.
 - Every request has a configurable timeout from 1 to 300 seconds.
@@ -97,13 +97,19 @@ PowerShell:
 ./build.ps1 -Version 1.0.0
 ```
 
-Linux or macOS cross-build:
+Linux or macOS build:
 
 ```sh
 ./build.sh 1.0.0
 ```
 
-The resulting executable is written to `release/AnalogOutputUtility.exe`.
+The resulting executables are:
+
+- `release/AnalogOutputUtility.exe`
+- `release/AnalogOutputUtility-macos-arm64` for Apple Silicon
+- `release/AnalogOutputUtility-macos-amd64` for Intel Macs
+
+On macOS, run the matching executable. It starts a loopback-only server and opens the utility in the default browser. Use **Quit Utility** in the page to stop it.
 
 ## Validation performed
 
@@ -120,4 +126,4 @@ The project includes automated tests for:
 - write and read-back verification;
 - HTTP error propagation.
 
-The API logic was tested with a local mock HTTP server. The Windows executable was cross-compiled and statically inspected as a PE32+ x86-64 GUI executable. It was not executed against a physical bSense device in the build environment.
+The API logic was tested with a local mock HTTP server. Windows and macOS executables are cross-compiled during the shell build. They were not executed against a physical bSense device in the build environment.

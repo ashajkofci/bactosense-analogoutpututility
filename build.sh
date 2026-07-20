@@ -13,4 +13,20 @@ CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build \
   -o release/AnalogOutputUtility.exe \
   .
 
-sha256sum release/AnalogOutputUtility.exe
+CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build \
+  -trimpath \
+  -ldflags "-s -w -X main.version=$VERSION" \
+  -o release/AnalogOutputUtility-macos-arm64 \
+  .
+
+CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build \
+  -trimpath \
+  -ldflags "-s -w -X main.version=$VERSION" \
+  -o release/AnalogOutputUtility-macos-amd64 \
+  .
+
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum release/AnalogOutputUtility.exe release/AnalogOutputUtility-macos-arm64 release/AnalogOutputUtility-macos-amd64
+else
+  shasum -a 256 release/AnalogOutputUtility.exe release/AnalogOutputUtility-macos-arm64 release/AnalogOutputUtility-macos-amd64
+fi
