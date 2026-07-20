@@ -419,6 +419,7 @@ func (a *application) createControls() error {
 	if a.invalidTLS, err = a.addControl(0, "BUTTON", "Allow an invalid HTTPS certificate", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 375, 115, 260, 24, idInvalidTLS, a.font); err != nil {
 		return err
 	}
+	setChecked(a.invalidTLS, true)
 	if _, err = a.addControl(0, "STATIC", "Credentials are kept in process memory only. HTTP Basic authentication over plain HTTP is not encrypted.", wsChild|wsVisible, 130, 141, 700, 20, 0, a.font); err != nil {
 		return err
 	}
@@ -474,11 +475,15 @@ func (a *application) createControls() error {
 			ptr := utf16Ptr(source)
 			procSendMessageW.Call(a.source[index], cbAddString, 0, uintptr(unsafe.Pointer(ptr)))
 		}
-		procSendMessageW.Call(a.source[index], cbSetCurSel, uintptr(index), 0)
+		procSendMessageW.Call(a.source[index], cbSetCurSel, uintptr(index*2), 0)
 		if a.low[index], err = a.addControl(wsExClientEdge, "EDIT", "0", wsChild|wsVisible|wsTabStop|esLeft|esAutoHScroll, 330, y, 150, 25, baseID+1, a.font); err != nil {
 			return err
 		}
-		if a.high[index], err = a.addControl(wsExClientEdge, "EDIT", "100", wsChild|wsVisible|wsTabStop|esLeft|esAutoHScroll, 520, y, 150, 25, baseID+2, a.font); err != nil {
+		high := "100"
+		if index == 0 {
+			high = "100000"
+		}
+		if a.high[index], err = a.addControl(wsExClientEdge, "EDIT", high, wsChild|wsVisible|wsTabStop|esLeft|esAutoHScroll, 520, y, 150, 25, baseID+2, a.font); err != nil {
 			return err
 		}
 		if a.log[index], err = a.addControl(0, "BUTTON", "Enabled", wsChild|wsVisible|wsTabStop|bsAutoCheckbox, 720, y, 110, 25, baseID+3, a.font); err != nil {

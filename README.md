@@ -28,7 +28,7 @@ The POST body has this shape:
 {
   "analogOutputs": [
     {
-      "high": 100,
+      "high": 100000,
       "log": false,
       "low": 0,
       "source": "TCC"
@@ -37,7 +37,7 @@ The POST body has this shape:
       "high": 100,
       "log": false,
       "low": 0,
-      "source": "ICC"
+      "source": "HNAP"
     }
   ]
 }
@@ -70,8 +70,8 @@ When the scheme is omitted, `http://` is used. When the API path is omitted, `/a
 - Clearing the checkbox **Keep password until app closes** clears the password field after each operation.
 - **Clear Credentials** clears the username and password fields immediately.
 - HTTP Basic authentication over plain HTTP is not encrypted. Use HTTPS when supported by the device.
-- Certificate validation is enabled by default.
-- **Allow an invalid HTTPS certificate** is available for a local device using a self-signed or mismatched certificate. Enabling it disables certificate verification for that operation.
+- Certificate validation is disabled by default for local devices using a self-signed or mismatched certificate.
+- Clear **Allow an invalid HTTPS certificate** to enable certificate verification for an operation.
 - Passwords and authorization headers are not written to the operation log.
 
 ## Concurrency and error handling
@@ -110,6 +110,12 @@ The resulting executables are:
 - `release/AnalogOutputUtility-macos-amd64` for Intel Macs
 
 On macOS, run the matching executable. It starts a loopback-only server and opens the utility in the default browser. Use **Quit Utility** in the page to stop it.
+
+## Create a GitHub release
+
+Open **Actions**, choose **Release downloads**, click **Run workflow**, and enter a version such as `1.1.0`. The workflow tests and builds the project, creates the matching `v1.1.0` tag and GitHub Release, and adds the Windows `.exe` and macOS executables as downloads.
+
+Pushing a tag such as `v1.1.0` runs the same release workflow.
 
 ## Validation performed
 

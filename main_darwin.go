@@ -218,14 +218,14 @@ const macPage = `<!doctype html>
 <label for="username">Username</label><input id="username" required autocomplete="off"><label for="timeout">Timeout (seconds)</label><input id="timeout" type="number" min="1" max="300" step="1" value="10" required>
 <label for="password">Password</label><input id="password" type="password" autocomplete="new-password"><label class="check"><input id="showPassword" type="checkbox"> Show</label><span></span>
 <span></span><label class="check wide"><input id="keepPassword" type="checkbox" checked> Keep password until app closes</label>
-<span></span><label class="check wide"><input id="invalidTLS" type="checkbox"> Allow an invalid HTTPS certificate</label>
+<span></span><label class="check wide"><input id="invalidTLS" type="checkbox" checked> Allow an invalid HTTPS certificate</label>
 </div><p class="hint">Credentials stay in this process and browser tab only. HTTP Basic authentication over plain HTTP is not encrypted.</p>
 <div class="actions"><button type="button" class="primary" data-operation="test">Test Connection</button><button type="button" data-operation="read">Read Settings</button><button type="button" data-operation="send">Send Settings</button><button type="button" id="cancel" disabled>Cancel</button><button type="button" id="clearCredentials">Clear Credentials</button></div>
 </fieldset>
 <fieldset><legend>Analog outputs</legend><div class="outputs">
 <span class="head">Output</span><span class="head">Source</span><span class="head">Low (4 mA)</span><span class="head">High (20 mA)</span><span class="head">Log scale</span>
-<span class="output-name">Analog output 1</span><select id="source1"><option>TCC</option><option>ICC</option><option>HNAP</option><option>HNAC</option><option>LNAC</option></select><input id="low1" value="0" required><input id="high1" value="100" required><label class="check"><input id="log1" type="checkbox"> Enabled</label>
-<span class="output-name">Analog output 2</span><select id="source2"><option>ICC</option><option>TCC</option><option>HNAP</option><option>HNAC</option><option>LNAC</option></select><input id="low2" value="0" required><input id="high2" value="100" required><label class="check"><input id="log2" type="checkbox"> Enabled</label>
+<span class="output-name">Analog output 1</span><select id="source1"><option>TCC</option><option>ICC</option><option>HNAP</option><option>HNAC</option><option>LNAC</option></select><input id="low1" value="0" required><input id="high1" value="100000" required><label class="check"><input id="log1" type="checkbox"> Enabled</label>
+<span class="output-name">Analog output 2</span><select id="source2"><option>HNAP</option><option>TCC</option><option>ICC</option><option>HNAC</option><option>LNAC</option></select><input id="low2" value="0" required><input id="high2" value="100" required><label class="check"><input id="log2" type="checkbox"> Enabled</label>
 </div><p class="hint">Values accept a decimal point or comma.</p></fieldset>
 <fieldset><legend>Operation log</legend><textarea id="log" readonly></textarea><div class="actions"><button type="button" id="clearLog">Clear Log</button><button type="button" class="danger" id="quit">Quit Utility</button></div></fieldset>
 <div id="status" role="status" aria-live="polite">Ready. Enter the device address and credentials.</div>

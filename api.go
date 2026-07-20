@@ -142,7 +142,7 @@ func newAPIClient(cfg ConnectionConfig) (*APIClient, error) {
 		ExpectContinueTimeout: time.Second,
 		TLSClientConfig: &tls.Config{
 			// This option is exposed explicitly in the UI for devices using a
-			// self-signed certificate. It is disabled by default.
+			// self-signed certificate.
 			InsecureSkipVerify: cfg.AllowInvalidTLS, // #nosec G402 -- user-selected local-device compatibility option
 		},
 	}
